@@ -1,0 +1,546 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.F_Orders..Create(DashForm)
+Gui.F_Orders..Caption("Form")
+Gui.F_Orders..Size(771,443)
+Gui.F_Orders..MinX(700)
+Gui.F_Orders..MinY(150)
+Gui.F_Orders..Position(0,0)
+Gui.F_Orders..AlwaysOnTop(False)
+Gui.F_Orders..FontName("Tahoma")
+Gui.F_Orders..FontSize(8.25)
+Gui.F_Orders..ControlBox(True)
+Gui.F_Orders..MaxButton(True)
+Gui.F_Orders..MinButton(True)
+Gui.F_Orders..MousePointer(0)
+Gui.F_Orders..Moveable(True)
+Gui.F_Orders..Sizeable(True)
+Gui.F_Orders..ShowInTaskBar(True)
+Gui.F_Orders..TitleBar(True)
+Gui.F_Orders..BarRefreshButton(True)
+Gui.F_Orders..BarExportButton(True)
+Gui.F_Orders..BarPrintButton(True)
+Gui.F_Orders..Event(UnLoad,F_Orders_UnLoad)
+Gui.F_Orders..Event(ExportClick,F_Orders_ExportClick)
+Gui.F_Orders..Event(PrintClick,F_Orders_PrintClick)
+Gui.F_Orders..Event(RefreshClick,F_Orders_RefreshClick)
+Gui.F_Orders..BarShareButton(True,True,False,False)
+Gui.F_Orders..Event(ShareEmailClick,F_Orders_ShareEmailClick)
+Gui.F_Orders.gsgcOrders.Create(GsGridControl)
+Gui.F_Orders.gsgcOrders.Enabled(True)
+Gui.F_Orders.gsgcOrders.Visible(True)
+Gui.F_Orders.gsgcOrders.Zorder(0)
+Gui.F_Orders.gsgcOrders.Size(771,377)
+Gui.F_Orders.gsgcOrders.Position(0,0)
+Gui.F_Orders.gsgcOrders.Dock(5)
+Gui.F_Acknowledgement..Create(DialogForm)
+Gui.F_Acknowledgement..Caption("Nightly Email")
+Gui.F_Acknowledgement..Size(394,132)
+Gui.F_Acknowledgement..MinX(0)
+Gui.F_Acknowledgement..MinY(0)
+Gui.F_Acknowledgement..Position(0,0)
+Gui.F_Acknowledgement..AlwaysOnTop(True)
+Gui.F_Acknowledgement..FontName("Tahoma")
+Gui.F_Acknowledgement..FontSize(8.25)
+Gui.F_Acknowledgement..MousePointer(0)
+Gui.F_Acknowledgement..DialogStyle(1)
+Gui.F_Acknowledgement..Moveable(True)
+Gui.F_Acknowledgement..Sizeable(True)
+Gui.F_Acknowledgement..ShowInTaskBar(True)
+Gui.F_Acknowledgement..TitleBar(True)
+Gui.F_Acknowledgement..Prompt("This program has a nightly program that runs at 7 PM Server Time. By entering at least one email address into the next screen, you are acknowledging that this program will email a copy of the Crystal Report to all entered email addresses every night at 7 PM Monday to Friday.")
+Gui.F_Acknowledgement..Event(SelectionMade,F_Acknowledgement_SelectionMade)
+Gui.F_Acknowledgement..Event(UnLoad,F_Acknowledgement_UnLoad)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.dTimestamp.Declare
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Local.sCaption.Declare
+V.Local.sPGs.Declare
+V.Local.sFile.Declare
+V.Local.iWeekDay.Declare
+'V.Local.iLoops.Declare
+'V.Local.bExists.Declare
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+
+F.Intrinsic.Control.If(V.Ambient.IsInTaskScheduler.Not)
+'F.Intrinsic.Control.If(False)
+	V.Global.dTimestamp.Set(V.Ambient.Now)
+	
+	F.Intrinsic.String.Build("Daily Sales by Primary Group - Last Refresh {0}",V.Global.dTimestamp.String,V.Local.sCaption)
+	Gui.F_Orders..Caption(V.Local.sCaption)
+	
+	F.ODBC.Connection!conFIRST.OpenCompanyConnection
+	F.Intrinsic.Control.CallSub(LoadBacklogData,"con","conFIRST")
+	F.Intrinsic.Control.CallSub(LoadBookingData,"con","conFIRST")
+	F.Intrinsic.Control.CallSub(LoadInvoiceData,"con","conFIRST")
+	F.ODBC.Connection!conFIRST.ExecuteAndReturn("select distinct A.PRIMARY_GRP from (select PRIMARY_GRP from V_ORDER_HEADER union select PRIMARY_GRP from V_SHIPMENT_HEADER union select PRIMARY_GRP from V_ORDER_HIST_HEAD) A where A.PRIMARY_GRP <> '' order by A.PRIMARY_GRP;",V.Local.sPGs)
+	F.ODBC.Connection!conFIRST.Close
+	
+	F.Intrinsic.Control.CallSub(CreatePGTable,"PGs",V.Local.sPGs)
+	
+	F.Intrinsic.Control.CallSub(SetupGridView)
+	
+	Gui.F_Orders..Show
+F.Intrinsic.Control.Else
+	F.Intrinsic.Date.Weekday(V.Ambient.Date,V.Local.iWeekDay)
+	
+	F.Intrinsic.Control.If(V.Local.iWeekDay,>,1,and,V.Local.iWeekDay,<,7)
+		'Between Monday and Friday
+		V.Global.dTimestamp.Set(V.Ambient.Now)
+		F.Intrinsic.String.Build("Daily Sales by Primary Group - Last Refresh {0}",V.Global.dTimestamp.String,V.Local.sCaption)
+		Gui.F_Orders..Caption(V.Local.sCaption)
+		
+		F.ODBC.Connection!conNIGHTLY.OpenCompanyConnection
+		F.Intrinsic.Control.CallSub(LoadBacklogData,"con","conNIGHTLY")
+		F.Intrinsic.Control.CallSub(LoadBookingData,"con","conNIGHTLY")
+		F.Intrinsic.Control.CallSub(LoadInvoiceData,"con","conNIGHTLY")
+		F.ODBC.Connection!conNIGHTLY.ExecuteAndReturn("select distinct A.PRIMARY_GRP from (select PRIMARY_GRP from V_ORDER_HEADER union select PRIMARY_GRP from V_SHIPMENT_HEADER union select PRIMARY_GRP from V_ORDER_HIST_HEAD) A where A.PRIMARY_GRP <> '' order by A.PRIMARY_GRP;",V.Local.sPGs)
+		F.ODBC.Connection!conNIGHTLY.Close
+		
+		F.Intrinsic.Control.CallSub(CreatePGTable,"PGs",V.Local.sPGs)
+		
+		'Print it
+		F.Intrinsic.String.Build("{0}\CUSTOM\DAILY\",V.Caller.GlobalDir,V.Local.sFile)
+		F.Intrinsic.File.CreateDir(V.Local.sFile)
+		F.Intrinsic.String.Build("{0}Daily_Report_{1}.pdf",V.Local.sFile,V.Ambient.Date.FormatYYYYMMDD,V.Local.sFile)
+		F.Intrinsic.Control.CallSub(PrintReport,"Mode",4,"File",V.Local.sFile,"Sync",True)
+		
+'		V.Local.iLoops.Set(0)
+'		F.Intrinsic.Control.Do
+'			F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bExists)
+'			F.Intrinsic.Control.If(V.Local.iLoops,>=,10,or,V.Local.bExists,=,True)
+'				F.Intrinsic.Control.ExitDo
+'			F.Intrinsic.Control.EndIf
+'			F.Intrinsic.Math.Add(V.Local.iLoops,1,V.Local.iLoops)
+'			Function.Intrinsic.UI.Sleep(100)
+'		F.Intrinsic.Control.Loop
+'		F.Intrinsic.Control.If(V.Local.iLoops,>=,10)
+'			'Program never created file, end program
+'			F.Intrinsic.String.Build("{0}\CUSTOM\DAILY\LOG.TXT",V.Caller.GlobalDir,V.Local.sFile)
+'			F.Intrinsic.File.String2File(V.Local.sFile,"PROGRAM ENDED BECAUSE OF NO FILE FOUND")
+'			F.Intrinsic.Control.End
+'		F.Intrinsic.Control.EndIf
+		
+		'Email it
+		F.Intrinsic.Control.CallSub(EmailReport,"File",V.Local.sFile)
+		
+		F.Intrinsic.File.DeleteFile(V.Local.sFile)
+		
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.F_Orders_UnLoad.Start
+F.Intrinsic.Control.End
+Program.Sub.F_Orders_UnLoad.End
+
+Program.Sub.F_Orders_ExportClick.Start
+V.Local.sForm.Declare(String, "F_Orders")
+V.Local.sControl.Declare(String, "gsgcOrders")
+V.Local.sFileExport.Declare
+V.Local.sMsg.Declare
+V.Local.sDate.Declare
+V.Local.sTime.Declare
+V.Local.bExcel.Declare
+V.Local.bFileLocked.Declare
+
+'Arc Number - VT
+F.Automation.MSExcel.CheckPresence(V.Local.bExcel)
+F.Intrinsic.String.DateString(V.Global.dTimestamp,V.Local.sDate)
+F.Intrinsic.String.TimeString(V.Global.dTimestamp,V.Local.sTime)
+F.Intrinsic.String.Build("{0}\Export",V.Caller.LocalGSSTempDir,V.Local.sFileExport)
+F.Intrinsic.File.CreateDir(V.Local.sFileExport)
+F.Intrinsic.Control.If(V.Local.bExcel)
+	F.Intrinsic.String.Build("{0}\Export\GCG_VT_{1}_Export_{2}_{3}.xlsx",V.Caller.LocalGSSTempDir,V.Local.sControl,V.Local.sDate,V.Local.sTime,V.Local.sFileExport)
+	F.Intrinsic.File.IsFileLocked(V.Local.sFileExport,V.Local.bFileLocked)
+	F.Intrinsic.Control.If(V.Local.bFileLocked)
+		F.Intrinsic.String.Build("File is already open. Please close and export again.{0}File : {1}",V.Ambient.NewLine,V.Local.sFileExport,V.Local.sMsg)
+		F.Intrinsic.UI.Msgbox(V.Local.sMsg,"File In Use")
+	F.Intrinsic.Control.Else
+		Gui.[V.Local.sForm].[V.Local.sControl].Export(V.Local.sFileExport,"xlsx")
+		F.Intrinsic.String.Build("{0}\Export",V.Caller.LocalGSSTempDir,V.Local.sFileExport)
+		F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Build("{0}\Export\GCG_VT_{1}_Export_{2}_{3}.csv",V.Caller.LocalGssTempDir,V.Local.sControl,V.Local.sDate,V.Local.sTime,V.Local.sFileExport)
+	F.Intrinsic.File.IsFileLocked(V.Local.sFileExport,V.Local.bFileLocked)
+	F.Intrinsic.Control.If(V.Local.bFileLocked)
+		F.Intrinsic.String.Build("File is already open. Please close and export again.{0}File: {1}",V.Ambient.NewLine,V.Local.sFileExport,V.Local.sMsg)
+		F.Intrinsic.UI.Msgbox(V.Local.sMsg,"File In Use")
+	F.Intrinsic.Control.Else
+		Gui.[V.Local.sForm].[V.Local.sControl].Export(V.Local.sFileExport,"csv")
+		F.Intrinsic.String.Build("{0}\Export",V.Caller.LocalGSSTempDir,V.Local.sFileExport)
+		F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Program.Sub.F_Orders_ExportClick.End
+
+Program.Sub.F_Orders_PrintClick.Start
+
+F.Intrinsic.Control.BlockEvents
+
+F.Intrinsic.Control.CallSub(PrintReport,"Mode",16,"File","","Sync",False)
+
+F.Intrinsic.Control.UnBlockEvents
+
+Program.Sub.F_Orders_PrintClick.End
+
+Program.Sub.F_Orders_RefreshClick.Start
+V.Local.sCaption.Declare
+V.Local.sPGs.Declare
+
+F.Intrinsic.Control.BlockEvents
+Gui.F_Orders.gsgcOrders.Visible(False)
+
+F.Data.DataTable.Close("dtPGs")
+F.Data.DataTable.Close("dtBacklog")
+F.Data.DataTable.Close("dtBookings")
+F.Data.DataTable.Close("dtInvoicing")
+
+V.Global.dTimestamp.Set(V.Ambient.Now)
+
+F.Intrinsic.String.Build("Daily Sales by Primary Group - Last Refresh {0}",V.Global.dTimestamp.String,V.Local.sCaption)
+Gui.F_Orders..Caption(V.Local.sCaption)
+
+F.ODBC.Connection!conREFRESH.OpenCompanyConnection
+F.Intrinsic.Control.CallSub(LoadBacklogData,"con","conREFRESH")
+F.Intrinsic.Control.CallSub(LoadBookingData,"con","conREFRESH")
+F.Intrinsic.Control.CallSub(LoadInvoiceData,"con","conREFRESH")
+F.ODBC.Connection!conREFRESH.ExecuteAndReturn("select distinct A.PRIMARY_GRP from (select PRIMARY_GRP from V_ORDER_HEADER union select PRIMARY_GRP from V_SHIPMENT_HEADER union select PRIMARY_GRP from V_ORDER_HIST_HEAD) A order by A.PRIMARY_GRP;",V.Local.sPGs)
+F.ODBC.Connection!conREFRESH.Close
+
+F.Intrinsic.Control.CallSub(CreatePGTable,"PGs",V.Local.sPGs)
+
+F.Intrinsic.Control.CallSub(SetupGridView)
+
+Gui.F_Orders.gsgcOrders.Visible(True)
+F.Intrinsic.Control.UnBlockEvents
+
+Program.Sub.F_Orders_RefreshClick.End
+
+Program.Sub.LoadBacklogData.Start
+'line is 0000
+F.Data.DataTable.CreateFromSQL("dtOrderHead",V.Args.con,"select ORDER_NO, PRIMARY_GRP from V_ORDER_HEADER;",True)
+F.Data.DataTable.CreateFromSQL("dtOrderLine",V.Args.con,"select ORDER_NO, left(RECORD_NO, 3) as ORDER_LINE, QTY_ORDERED, QTY_SHIPPED, QTY_BO, PRICE from V_ORDER_LINES;",True)
+
+F.Data.Linq.Join(V.Enum.LinqJoinType!LeftJoin,V.Enum.LinqSourceType!DataTable,"dtOrderLine*!*LINE",V.Enum.LinqSourceType!DataTable,"dtOrderHead*!*HEAD","LINE.ORDER_NO = HEAD.ORDER_NO","LINE.ORDER_NO*!*HEAD.PRIMARY_GRP*!*LINE.ORDER_LINE*!*LINE.QTY_ORDERED*!*LINE.QTY_SHIPPED*!*LINE.QTY_BO*!*LINE.PRICE","","","LINE.ORDER_NO asc, LINE.ORDER_LINE asc","dtBacklog",True)
+F.Data.DataTable.Close("dtOrderHead")
+F.Data.DataTable.Close("dtOrderLine")
+
+F.Data.DataTable.AddExpressionColumn("dtBacklog","EXTENSION","Float","[QTY_BO] * [PRICE]")
+
+Program.Sub.LoadBacklogData.End
+
+Program.Sub.LoadBookingData.Start
+V.Local.sParams.Declare
+V.Local.sSQL.Declare
+
+F.Intrinsic.String.Build("0101{0}!*!{1}!*!L!*!Y!*!{2}!*!{3}",V.Global.dTimestamp.FormatYY,V.Global.dTimestamp.FormatMMDDYY,V.Global.dTimestamp.String,V.Ambient.Time.String,V.Local.sParams)
+F.Global.General.CallWrapperSyncBio(910040,V.Local.sParams)
+
+'line is 0000
+F.Intrinsic.String.Build("select CUST_NUMBER as CUSTOMER, ORDER_NUMBER as ORDER_NO, '' as ORDER_GRP, '' as CUSTOMER_GRP, left(ORDER_LINE, 3) as ORDER_LINE, ORDER_DATE, AMOUNT from V_BI_BOOKINGS where TRMNL = '{0}' and RPTID = '000072' and REC_TYPE <> 'T' and REC_TYPE <> 'FT' order by ORDER_NO asc, ORDER_LINE asc;",V.Caller.Terminal,V.Local.sSQL)
+F.Data.DataTable.CreateFromSQL("dtBookings",V.Args.con,V.Local.sSQL,True)
+F.Data.DataTable.AddExpressionColumn("dtBookings","PRIMARY_GRP","String","iif(ORDER_GRP = '', CUSTOMER_GRP, ORDER_GRP)")
+F.Data.Dictionary.CreateFromSQL("dictPG",V.Args.con,"select A.ORDER_NO, A.PRIMARY_GRP from (select ORDER_NO, PRIMARY_GRP from V_ORDER_HEADER union select ORDER_NO, PRIMARY_GRP from V_SHIPMENT_HEADER union select ORDER_NO, PRIMARY_GRP from V_ORDER_HIST_HEAD) A where A.ORDER_NO <> '0000000';")
+F.Data.Dictionary.SetDefaultReturn("dictPG","")
+F.Data.DataTable.FillFromDictionary("dtBookings","dictPG","ORDER_NO","ORDER_GRP")
+F.Data.Dictionary.Close("dictPG")
+F.Data.Dictionary.CreateFromSQL("dictPG",V.Args.con,"select CUSTOMER, PRIMARY_GROUP from V_CUST_FORM_INFO;")
+F.Data.Dictionary.SetDefaultReturn("dictPG","")
+F.Data.DataTable.FillFromDictionary("dtBookings","dictPG","ORDER_NO","CUSTOMER_GRP")
+F.Data.Dictionary.Close("dictPG")
+
+Program.Sub.LoadBookingData.End
+
+Program.Sub.LoadInvoiceData.Start
+'V.Local.iCnt.Declare
+'V.Local.sOrderNo.Declare
+'V.Local.sOrderSuffix.Declare
+'V.Local.sOrderLine.Declare
+'V.Local.sMsg.Declare
+'line is 0000
+F.Data.DataTable.CreateFromSQL("dtOrderHistHead",V.Args.con,"select INVOICE, ORDER_NO, ORDER_SUFFIX, PRIMARY_GRP from V_ORDER_HIST_HEAD;",True)
+F.Data.DataTable.CreateFromSQL("dtOrderHistLine",V.Args.con,"select INVOICE, ORDER_NO, ORDER_SUFFIX, left(ORDER_LINE, 3) as ORDER_LINE, DATE_SHIPPED, LINE_TYPE, EXTENSION from V_ORDER_HIST_LINE where LINE_TYPE <> 'P';",True)
+F.Data.DataTable.CreateFromSQL("dtShipHead",V.Args.con,"select INVOICE, ORDER_NO, ORDER_SUFFIX, PRIMARY_GRP from V_SHIPMENT_HEADER;",True)
+F.Data.DataTable.CreateFromSQL("dtShipLine",V.Args.con,"select INVOICE, ORDER_NO, ORDER_SUFFIX, left(ORDER_REC, 3) as ORDER_LINE, DATE_SHIP as DATE_SHIPPED, LINE_TYPE, EXTENSION from V_SHIPMENT_LINES where LINE_TYPE <> 'P';",True)
+F.Data.DataTable.Merge("dtShipHead","dtOrderHistHead",True,2)
+F.Data.DataTable.Merge("dtShipLine","dtOrderHistLine",True,2)
+F.Data.DataTable.Close("dtShipHead")
+F.Data.DataTable.Close("dtShipLine")
+
+F.Data.Linq.Join(V.Enum.LinqJoinType!LeftJoin,V.Enum.LinqSourceType!DataTable,"dtOrderHistLine*!*LINE",V.Enum.LinqSourceType!DataTable,"dtOrderHistHead*!*HEAD","LINE.ORDER_NO = HEAD.ORDER_NO and LINE.ORDER_SUFFIX = HEAD.ORDER_SUFFIX and LINE.INVOICE = HEAD.INVOICE","LINE.INVOICE*!*LINE.ORDER_NO*!*LINE.ORDER_SUFFIX*!*HEAD.PRIMARY_GRP*!*LINE.ORDER_LINE*!*LINE.DATE_SHIPPED*!*LINE.LINE_TYPE*!*LINE.EXTENSION","","","LINE.ORDER_NO asc, LINE.ORDER_SUFFIX asc, LINE.ORDER_LINE asc","dtInvoicing",True)
+F.Data.DataTable.Close("dtOrderHistHead")
+F.Data.DataTable.Close("dtOrderHistLine")
+
+'Debugging stuff, do not reimplement - Bix
+'F.Data.DataView.Create("dtInvoicing","dvDebug",22,"[DATE_SHIPPED] <= #5/13/2022# and [DATE_SHIPPED] >= #1/1/2022#","")
+'F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataView.dtInvoicing!dvDebug.RowCount--,1)
+'	F.Intrinsic.Control.If(V.Local.sOrderNo,=,V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_No!FieldVal,and,V.Local.sOrderSuffix,=,V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_Suffix!FieldVal,V.Local.sOrderLine,=,V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_Line!FieldVal)
+'		'Found it
+'		F.Intrinsic.String.Build("Order: {0}, Suf: {1}, Line: {2}, Ext: {3}",V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_No!FieldVal,V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_Suffix!FieldVal,V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_Line!FieldVal,V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Extension!FieldValString,V.Local.sMsg)
+'		F.Intrinsic.UI.Msgbox(V.Local.sMsg)
+'	F.Intrinsic.Control.EndIf
+'	V.Local.sOrderNo.Set(V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_No!FieldVal)
+'	V.Local.sOrderSuffix.Set(V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_Suffix!FieldVal)
+'	V.Local.sOrderLine.Set(V.DataView.dtInvoicing!dvDebug(V.Local.iCnt).Order_Line!FieldVal)
+'F.Intrinsic.Control.Next(V.Local.iCnt)
+
+Program.Sub.LoadInvoiceData.End
+
+Program.Sub.CreatePGTable.Start
+V.Local.sFilter.Declare
+V.Local.fTotal.Declare
+V.Local.dMonthStart.Declare
+V.Local.dYearStart.Declare
+V.Local.dDate.Declare
+V.Local.iCnt.Declare
+
+F.Data.DataTable.CreateFromString("dtPGs",V.Args.PGs,"PRIMARY_GRP","String","*!*","#$#",True)
+F.Data.DataTable.AddColumn("dtPGs","BACKLOG","Float")
+F.Data.DataTable.AddColumn("dtPGs","DAILY_BOOKING","Float")
+F.Data.DataTable.AddColumn("dtPGs","MTD_BOOKING","Float")
+F.Data.DataTable.AddColumn("dtPGs","YTD_BOOKING","Float")
+F.Data.DataTable.AddColumn("dtPGs","DAILY_INVOICING","Float")
+F.Data.DataTable.AddColumn("dtPGs","MTD_INVOICING","Float")
+F.Data.DataTable.AddColumn("dtPGs","YTD_INVOICING","Float")
+F.Intrinsic.Control.If(V.DataTable.dtPGs.RowCount,>,0)
+	F.Intrinsic.Control.If(V.DataTable.dtPGs(0).PRIMARY_GRP!FieldValTrim,<>,"")
+		F.Data.DataTable.AddRow("dtPGs","PRIMARY_GRP","")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	F.Data.DataTable.AddRow("dtPGs","PRIMARY_GRP","")
+F.Intrinsic.Control.EndIf
+
+'I added the date serial because dTimestamp can carry over the time which messes up the filter expressions being built below
+F.Intrinsic.Date.DateSerial(V.Global.dTimestamp.FormatYYYY,V.Global.dTimestamp.FormatM,V.Global.dTimestamp.FormatD,V.Local.dDate)
+F.Intrinsic.Date.BeginningOfMonth(V.Global.dTimestamp,V.Local.dMonthStart)
+F.Intrinsic.Date.DateSerial(V.Local.dMonthStart.FormatYYYY,V.Local.dMonthStart.FormatM,V.Local.dMonthStart.FormatD,V.Local.dMonthStart)
+F.Intrinsic.Date.DateSerial(V.Global.dTimestamp.FormatYYYY,1,1,V.Local.dYearStart)
+F.Intrinsic.Date.DateSerial(V.Local.dYearStart.FormatYYYY,V.Local.dYearStart.FormatM,V.Local.dYearStart.FormatD,V.Local.dYearStart)
+
+F.Intrinsic.Control.For(V.Local.iCnt,0,V.DataTable.dtPGs.RowCount--,1)
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}'",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtBacklog","SUM(EXTENSION)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"BACKLOG",V.Local.fTotal)
+	
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}' and [ORDER_DATE] = #{1}#",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.dDate.String,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtBookings","SUM(AMOUNT)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"DAILY_BOOKING",V.Local.fTotal)
+	
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}' and [ORDER_DATE] <= #{1}# and [ORDER_DATE] >= #{2}#",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.dDate.String,V.Local.dMonthStart.String,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtBookings","SUM(AMOUNT)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"MTD_BOOKING",V.Local.fTotal)
+	
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}' and [ORDER_DATE] <= #{1}# and [ORDER_DATE] >= #{2}#",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.dDate.String,V.Local.dYearStart.String,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtBookings","SUM(AMOUNT)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"YTD_BOOKING",V.Local.fTotal)
+	
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}' and [DATE_SHIPPED] = #{1}#",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.dDate.String,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtInvoicing","SUM(EXTENSION)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"DAILY_INVOICING",V.Local.fTotal)
+	
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}' and [DATE_SHIPPED] <= #{1}# and [DATE_SHIPPED] >= #{2}#",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.dDate.String,V.Local.dMonthStart.String,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtInvoicing","SUM(EXTENSION)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"MTD_INVOICING",V.Local.fTotal)
+	
+	F.Intrinsic.String.Build("[PRIMARY_GRP] = '{0}' and [DATE_SHIPPED] <= #{1}# and [DATE_SHIPPED] >= #{2}#",V.DataTable.dtPGs(V.Local.iCnt).PRIMARY_GRP!FieldVal,V.Local.dDate.String,V.Local.dYearStart.String,V.Local.sFilter)
+	F.Data.DataTable.Compute("dtInvoicing","SUM(EXTENSION)",V.Local.sFilter,V.Local.fTotal)
+	F.Data.DataTable.SetValue("dtPGs",V.Local.iCnt,"YTD_INVOICING",V.Local.fTotal)
+F.Intrinsic.Control.Next(V.Local.iCnt)
+
+F.Intrinsic.Control.If(V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).BACKLOG!FieldVal,=,0,and,V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).DAILY_BOOKING!FieldVal,=,0,V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).MTD_BOOKING!FieldVal,=,0,V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).YTD_BOOKING!FieldVal,=,0,V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).DAILY_INVOICING!FieldVal,=,0,V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).MTD_INVOICING!FieldVal,=,0,V.DataTable.dtPGs(V.DataTable.dtPGs.RowCount--).YTD_INVOICING!FieldVal,=,0)
+	F.Data.DataTable.DeleteRow("dtPGs",V.DataTable.dtPGs.RowCount--)
+	F.Data.DataTable.AcceptChanges("dtPGs")
+F.Intrinsic.Control.EndIf
+
+Program.Sub.CreatePGTable.End
+
+Program.Sub.SetupGridView.Start
+V.Local.sCaption.Declare
+
+Gui.F_Orders.gsgcOrders.AddGridviewFromDatatable("gvPGs","dtPGs")
+
+Gui.F_Orders.gsgcOrders.SetGridviewProperty("gvPGs",V.Enum.GridViewPropertyNames!Editable,False)
+Gui.F_Orders.gsgcOrders.SetGridviewProperty("gvPGs",V.Enum.GridViewPropertyNames!ColumnAutoWidth,False)
+Gui.F_Orders.gsgcOrders.SetGridviewProperty("gvPGs",V.Enum.GridViewPropertyNames!ColumnPanelRowHeight,40)
+
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","PRIMARY_GRP",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_BOOKING",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_BOOKING",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_BOOKING",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_INVOICING",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_INVOICING",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_INVOICING",V.Enum.ColumnPropertyNames!HeaderWordWrap,"Wrap")
+
+F.Intrinsic.String.Build("Primary{0}Group",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","PRIMARY_GRP",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","BACKLOG",V.Enum.ColumnPropertyNames!Caption,"Backlog")
+F.Intrinsic.String.Build("Daily{0}Bookings",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_BOOKING",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+F.Intrinsic.String.Build("MTD{0}Bookings",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_BOOKING",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+F.Intrinsic.String.Build("YTD{0}Bookings",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_BOOKING",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+F.Intrinsic.String.Build("Gross Daily{0}Shipments Invoiced",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_INVOICING",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+F.Intrinsic.String.Build("Gross MTD{0}Shipments Invoiced",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_INVOICING",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+F.Intrinsic.String.Build("Gross YTD{0}Shipments Invoiced",V.Ambient.NewLine,V.Local.sCaption)
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_INVOICING",V.Enum.ColumnPropertyNames!Caption,V.Local.sCaption)
+
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","PRIMARY_GRP",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","BACKLOG",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_BOOKING",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_BOOKING",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_BOOKING",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_INVOICING",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_INVOICING",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_INVOICING",V.Enum.ColumnPropertyNames!HeaderHAlignment,"Center")
+
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","BACKLOG",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_BOOKING",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_BOOKING",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_BOOKING",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","DAILY_INVOICING",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","MTD_INVOICING",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+Gui.F_Orders.gsgcOrders.SetColumnProperty("gvPGs","YTD_INVOICING",V.Enum.ColumnPropertyNames!DisplayCustomNumeric,"$ #,##0.00")
+
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","PRIMARY_GRP","BacklogTot","SUM","TOTALS","","")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","BACKLOG","BacklogTot","SUM","","","$ #,##0.00")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","DAILY_BOOKING","BacklogTot","SUM","","","$ #,##0.00")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","MTD_BOOKING","BacklogTot","SUM","","","$ #,##0.00")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","YTD_BOOKING","BacklogTot","SUM","","","$ #,##0.00")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","DAILY_INVOICING","BacklogTot","SUM","","","$ #,##0.00")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","MTD_INVOICING","BacklogTot","SUM","","","$ #,##0.00")
+Gui.F_Orders.gsgcOrders.AddSummaryItem("gvPGs","YTD_INVOICING","BacklogTot","SUM","","","$ #,##0.00")
+
+Gui.F_Orders.gsgcOrders.MainView("gvPGs")
+Gui.F_Orders.gsgcOrders.BestFitColumns("gvPGs")
+
+Program.Sub.SetupGridView.End
+
+Program.Sub.F_Orders_ShareEmailClick.Start
+Gui.F_Acknowledgement..Show
+Program.Sub.F_Orders_ShareEmailClick.End
+
+Program.Sub.F_Acknowledgement_SelectionMade.Start
+V.Local.sEmails.Declare
+
+Gui.F_Acknowledgement..Visible(False)
+
+F.Intrinsic.Control.If(V.Args.Result,=,V.Enum.MsgBoxResult!OK)
+	F.Global.Registry.ReadValue(-1,V.Caller.CompanyCode,"Daily Report Recipients",100000,0,6,"",V.Local.sEmails)
+	
+	F.Intrinsic.UI.Inputbox("Nightly Email","Enter recipient emails for Nightly Email (Use ";" between email addresses)",V.Local.sEmails,V.Local.sEmails)
+	
+	F.Intrinsic.Control.If(V.Local.sEmails.IsNotCancel)
+		F.Global.Registry.AddValue(-1,V.Caller.CompanyCode,"Daily Report Recipients",100000,0,False,"Recipients",False,0,0,V.Global.dTimestamp,V.Ambient.Time,V.Local.sEmails)
+	F.Intrinsic.Control.EndIf
+	
+	F.Global.Registry.ReadValue(-1,V.Caller.CompanyCode,"Daily Report Sender",100000,0,6,"",V.Local.sEmails)
+	
+	F.Intrinsic.UI.Inputbox("Nightly Email","Enter sender email for Nightly Email",V.Local.sEmails,V.Local.sEmails)
+	
+	F.Intrinsic.Control.If(V.Local.sEmails.IsNotCancel)
+		F.Global.Registry.AddValue(-1,V.Caller.CompanyCode,"Daily Report Sender",100000,0,False,"Sender",False,0,0,V.Global.dTimestamp,V.Ambient.Time,V.Local.sEmails)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Gui.F_Orders..SetFocus
+
+Program.Sub.F_Acknowledgement_SelectionMade.End
+
+Program.Sub.F_Acknowledgement_UnLoad.Start
+Gui.F_Acknowledgement..Visible(False)
+Gui.F_Orders..SetFocus
+Program.Sub.F_Acknowledgement_UnLoad.End
+
+Program.Sub.PrintReport.Start
+'V.Args.Mode,V.Args.File,V.Args.Sync
+V.Local.sSQL.Declare
+V.Local.sParamNames.Declare
+V.Local.sParamValues.Declare
+V.Local.iReportID.Declare
+V.Local.iBIRunID.Declare
+V.Local.iBILogID.Declare
+V.Local.iRet.Declare
+
+F.Global.BI.GetIDFromName("GCG_6765_DAILY.rpt",V.Local.iReportID)
+
+F.Global.BI.GetRunID(V.Local.iBIRunID)
+
+F.Global.BI.StartLogging(V.Local.iBIRunID,V.Local.iReportID.Format000000,-1,"",V.Local.iBILogID)
+
+F.Data.DataTable.Clone("dtPGs","dtSave",True)
+F.Data.DataTable.AddColumn("dtSave","TERMINAL_NO","String",V.Caller.Terminal)
+F.Data.DataTable.AddColumn("dtSave","REPORT_ID","String",V.Local.iReportID.Format000000)
+F.Data.DataTable.Merge("dtPGs","dtSave",True,2)
+F.Intrinsic.String.Build("delete from GCG_6765_DAILY where TERMINAL_NO = '{0}';",V.Caller.Terminal,V.Local.sSQL)
+F.ODBC.Connection!conPRINT.OpenCompanyConnection
+F.ODBC.Connection!conPRINT.Execute(V.Local.sSQL)
+F.Data.DataTable.SaveToDB("dtSave","conPRINT","GCG_6765_DAILY","",128)
+F.ODBC.Connection!conPRINT.Close
+F.Data.DataTable.Close("dtSave")
+
+F.Global.BI.StopLogging(V.Local.iBILogID)
+
+F.Intrinsic.String.Build("{0}*!*{1}*!*{2}","TERMINAL_NO","REPORT_ID","REPORT_DATE",V.Local.sParamNames)
+F.Intrinsic.String.Build("{0}*!*{1}*!*{2}",V.Caller.Terminal,V.Local.iReportID.Format000000,V.Global.dTimestamp.String,V.Local.sParamValues)
+F.Global.BI.RunReportPreProcessor(V.Local.iBIRunID,V.Local.iBILogID,V.Local.sParamNames,V.Local.sParamValues,"",V.Args.Mode,V.Args.Sync,"",0,"",0,V.Args.File,"",V.Local.iRet)
+Program.Sub.PrintReport.End
+
+Program.Sub.EmailReport.Start
+V.Local.sSender.Declare
+V.Local.sRecipients.Declare
+V.Local.sAttachments.Declare
+V.Local.sFile.Declare
+V.Local.iCnt.Declare
+V.Local.iUserID.Declare
+V.Local.bSender.Declare
+V.Local.bRecipients.Declare
+
+F.Global.Registry.ReadValue(-1,V.Caller.CompanyCode,"Daily Report Recipients",100000,0,6,"",V.Local.sRecipients)
+
+F.Global.Registry.ReadValue(-1,V.Caller.CompanyCode,"Daily Report Sender",100000,0,6,"",V.Local.sSender)
+
+F.Global.Messaging.IsAddressValid(V.Local.sSender.Trim,V.Local.bSender)
+F.Intrinsic.Control.If(V.Local.bSender.Not)
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+f.Intrinsic.String.Build("{0}*!*",V.Local.sSender,V.Local.sSender)
+
+F.Intrinsic.String.Split(V.Local.sRecipients,";",V.Local.sRecipients)
+F.Intrinsic.Control.For(V.Local.iCnt,0,V.Local.sRecipients.UBound)
+	V.Local.sRecipients(V.Local.iCnt).Set(V.Local.sRecipients(V.Local.iCnt).Trim)
+	F.Global.Messaging.IsAddressValid(V.Local.sRecipients(V.Local.iCnt),V.Local.bRecipients)
+	F.Intrinsic.Control.If(V.Local.bRecipients.Not)
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.String.Build("*!*{0}",V.Local.sRecipients(V.Local.iCnt),V.Local.sRecipients(V.Local.iCnt))
+F.Intrinsic.Control.Next(V.Local.iCnt)
+F.Intrinsic.String.Join(V.Local.sRecipients,"@!@",V.Local.sRecipients)
+V.Local.sRecipients.RedimPreserve(0,0)
+
+F.Intrinsic.String.Split(V.Args.File,"\",V.Local.sAttachments)
+V.Local.sFile.Set(V.Local.sAttachments(V.Local.sAttachments.UBound))
+V.Local.sAttachments(V.Local.sAttachments.UBound).Set("")
+F.Intrinsic.String.Join(V.Local.sAttachments,"\",V.Local.sAttachments)
+V.Local.sAttachments.RedimPreserve(0,0)
+F.Intrinsic.String.Build("{0}*!*{1}",V.Local.sFile,V.Local.sAttachments,V.Local.sAttachments)
+
+F.Global.Security.GetUserId(V.Caller.User,V.Caller.CompanyCode,V.Local.iUserID)
+
+F.Global.Messaging.QueueMessage(V.Caller.CompanyCode,V.Local.iUserID,"Daily Report Email","Daily Report",V.Local.sSender,V.Local.sRecipients,"See attached",-1,"",False,"",V.Ambient.MinDate,"","","","","",V.Local.sAttachments,True,"")
+	
+Program.Sub.EmailReport.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$bbaker$}$20220617135744459$}$pM7xsHplA2E9VCTenDTJ47gi1rF/t66WLa945JcoqmhVw1zDHCqOuO8v0DpqNWVHRt2qJnzVs6w=
+Program.Sub.Comments.End
